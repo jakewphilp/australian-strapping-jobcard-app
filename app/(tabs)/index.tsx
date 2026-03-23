@@ -5,6 +5,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // IMAGE PICKER - allows user to select photos from their photo library
 import * as ImagePicker from 'expo-image-picker';
 
+// FILE SYSTEM - used to create and write CSV files to device storage
+import * as FileSystem from 'expo-file-system';
+
+// SHARING - allows user to export/share the generated CSV file
+import * as Sharing from 'expo-sharing';
+
 // DROPDOWN SELECTOR - used for worker and site selection drop down menus
 import { Picker } from '@react-native-picker/picker';
 
@@ -587,7 +593,7 @@ export default function HomeScreen() {
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
         <Text style={styles.title}>
-          Philp Operations{'\n'}Job Card
+          PHILPY & SONS {'\n'}JOB CARD
         </Text>
         <Text style={styles.sectionTitle}>Worker</Text>
         <View style={styles.pickerWrapper}>
@@ -844,7 +850,7 @@ const styles = StyleSheet.create({
 
   // APP TITLE - large heading shown at the top of the screen
   title: {
-    fontSize: 30,
+    fontSize: 48,
     fontWeight: '900',
     marginBottom: 18,
     textAlign: 'center',
