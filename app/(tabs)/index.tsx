@@ -204,17 +204,15 @@ export default function HomeScreen() {
   };
 
   const deleteJob = (id: string) => {
-    Alert.alert('Delete job card', 'Are you sure you want to delete this job card?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          setJobs((current) => current.filter((job) => job.id !== id));
-        },
-      },
-    ]);
-  };
+  const confirmed =
+    typeof window !== 'undefined'
+      ? window.confirm('Are you sure you want to delete this job card?')
+      : true;
+
+  if (!confirmed) return;
+
+  setJobs((current) => current.filter((job) => job.id !== id));
+};
 
   const deleteQuickSite = (siteName: string) => {
     Alert.alert('Delete quick site', `Remove "${siteName}" from quick sites?`, [
