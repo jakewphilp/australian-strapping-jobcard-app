@@ -1,7 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
-import * as Sharing from 'expo-sharing';
 import { Picker } from '@react-native-picker/picker';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -414,8 +412,6 @@ export default function HomeScreen() {
       .sort((a, b) => b.monthKey.localeCompare(a.monthKey));
   }, [filteredJobs]);
 
-  const currentMonthLabel = useMemo(() => getMonthLabel(new Date()), []);
-
   const exportMonthToCsv = async (group: MonthlyGroup) => {
   try {
     const csvRows: string[] = [];
@@ -430,7 +426,7 @@ export default function HomeScreen() {
       csvRows.push(`${escapeCsv(row.label)},${row.totalHours}`);
     }
     csvRows.push('');
-await
+
     csvRows.push('Weekly Summary');
     csvRows.push('Week Range,Total Hours');
     for (const row of group.weeklyRows) {
@@ -456,25 +452,24 @@ await
     }
 
     const fileName = `${group.monthLabel.replace(/[^\w-]+/g, '_')}_summary.csv`;
-    const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+    const csvContent = csvRows.join('\n');
 
-    await FileSystem.writeAsStringAsync(fileUri, csvRows.join('\n'));
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
 
-    const fileInfo = await FileSystem.getInfoAsync(fileUri);
-    console.log('CSV file info:', fileInfo);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-    const canShare = await Sharing.isAvailableAsync();
-
-    if (!canShare) {
-      Alert.alert('Exported', `CSV saved to:\n${fileUri}`);
+      URL.revokeObjectURL(url);
       return;
     }
 
-    await Sharing.shareAsync(fileUri, {
-      mimeType: 'text/csv',
-      dialogTitle: `Export ${group.monthLabel} CSV`,
-      UTI: 'public.comma-separated-values-text',
-    });
+    Alert.alert('Export not supported', 'CSV export is only available in the web version right now.');
   } catch (error) {
     console.log('Error exporting CSV:', error);
     Alert.alert(
