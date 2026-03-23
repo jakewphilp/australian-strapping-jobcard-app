@@ -28,6 +28,8 @@ import {
 
   Image, 	// DISPLAY IMAGES (job photos)
 
+  Platform, 	// DETECTS IF APP IS RUNNING ON WEB OR MOBILE
+
   Pressable, 	// CUSTOM TOUCHABLE BUTTON (more control than button)
 
   ScrollView, 	// ALLOWS VERTICAL/HORIZONTAL SCROLLING
@@ -302,46 +304,78 @@ export default function HomeScreen() {
 
   // DELETE JOB - removes a saved job card after confirmation 
   const deleteJob = (id: string) => {
-    Alert.alert('Confirm delete', 'Are you sure you want to delete this job card?', 
-    [
-      { text: 'Cancel', style: 'cancel' }, 
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to delete this job card?');
+      if (confirmed) {
+        setJobs((current) => current.filter((job) => job.id !== id));
+      }
+      return;
+    }
+
+    Alert.alert('Confirm delete', 'Are you sure you want to delete this job card?', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete', 
-        style:'destructive',
+        text: 'Delete',
+        style: 'destructive',
         onPress: () => {
-          setJobs((current) => current.filter((job) => job.id !==id));
-        }, 
+          setJobs((current) => current.filter((job) => job.id !== id));
+        },
       },
-    ]
-    );
+    ]);
   };
 
   // DELETE QUICK SITE - removes a saved quick site after confirmation 
   const deleteQuickSite = (siteName: string) => {
+    const target = siteName.trim().toLowerCase();
+
+    const runDelete = () => {
+      setQuickSites((current) =>
+        current.filter((s) => s.trim().toLowerCase() !== target)
+      );
+
+      if (site.trim().toLowerCase() === target) {
+      setSite('');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Remove "${siteName}" from quick sites?`);
+      if (confirmed) {
+        runDelete();
+      }
+      return;
+    }
+
     Alert.alert('Delete quick site', `Remove "${siteName}" from quick sites?`, [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Delete', 
+        text: 'Delete',
         style: 'destructive',
-        onPress: () => {
-          setQuickSites((current) => current.filter((s) => s !== siteName));
-          if (site === siteName) {
-
-            setSite(''); 	// CLEARS CURRENT SITE INPUT IF THE DELETED QUICK SITE WAS SELECTED
-          }
-        },
+        onPress: runDelete,
       },
     ]);
   };
 
   // CLEAR ALL JOBS - asks for confirmation, then deletes every saved job card
   const clearAllJobs = () => {
+    const runClear = () => {
+      setJobs([]);
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to delete all saved job cards?');
+      if (confirmed) {
+        runClear();
+      }
+      return;
+    }
+
     Alert.alert('Clear all job cards', 'Are you sure you want to delete all saved job cards?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete All',
         style: 'destructive',
-        onPress: () => setJobs([]),
+        onPress: runClear,
       },
     ]);
   };
@@ -598,6 +632,7 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>Worker</Text>
         <View style={styles.pickerWrapper}>
           <Picker selectedValue={worker} onValueChange={(value) => setWorker(value)} style={styles.picker}>
+            <Picker.Item label="Select a worker..." value="" />
             {FORM_WORKERS.map((name) => (
               <Picker.Item key={name} label={name} value={name} />
             ))}
