@@ -559,7 +559,7 @@ export default function HomeScreen() {
   const exportMonthToCsv = async (group: MonthlyGroup) => {
     try {
       const csvRows: string[] = [];
-      
+
       // HEADER INFO
       csvRows.push(`Month,${escapeCsv(group.monthLabel)}`);
       csvRows.push(`Filter Worker,${escapeCsv(filterWorker)}`);
@@ -597,19 +597,34 @@ export default function HomeScreen() {
           ].join(',')
         );
       }
+
+      const csvContent = csvRows.join('\n');
       const fileName = `${group.monthLabel.replace(/[^\w-]+/g, '_')}_summary.csv`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+        return;
+      }
+
       const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
-
-      await FileSystem.writeAsStringAsync(fileUri, csvRows.join('\n'));
-
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      console.log('CSV file info:', fileInfo);
+      await FileSystem.writeAsStringAsync(fileUri, csvContent);
 
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
         Alert.alert('Exported', `CSV saved to:\n${fileUri}`);
         return;
       }
+
       await Sharing.shareAsync(fileUri, {
         mimeType: 'text/csv',
         dialogTitle: `Export ${group.monthLabel} CSV`,
@@ -622,7 +637,8 @@ export default function HomeScreen() {
         error instanceof Error ? error.message : String(error)
       );
     }
-  };
+};
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContainer}>
       <View style={styles.container}>
