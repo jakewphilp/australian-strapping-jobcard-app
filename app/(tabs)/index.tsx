@@ -1,6 +1,6 @@
 // LOCAL STORAGE - saves job data on the device for now
 // Later this can be replaced with Supabase database calls
-import AsyncStorage from '@react-native-async-storage/async-storage'; 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // IMAGE PICKER - allows user to select photos from their photo library
 import * as ImagePicker from 'expo-image-picker';
@@ -17,31 +17,32 @@ import { Picker } from '@react-native-picker/picker';
 // REACT HOOKS - state management and lifecycle control
 import { useEffect, useMemo, useState } from 'react';
 
+// SUPABASE IMPORT - connects this screen to the cloud database
+import { supabase } from '../../supabase';
+
 // UI COMPONENTS - building blocks of the app screen
 import {
+  Alert, // POPUP ALERTS (errors, confirmations)
 
-  Alert,	// POPUP ALERTS (errors, confirmations)
+  Button, // BASIC BUTTON COMPONENT
 
-  Button, 	// BASIC BUTTON COMPONENT
+  FlatList, // EFFICIENT LIST RENDERING (job cards)
 
-  FlatList, 	// EFFICIENT LIST RENDERING (job cards)
+  Image, // DISPLAY IMAGES (job photos)
 
-  Image, 	// DISPLAY IMAGES (job photos)
+  Platform, // DETECTS IF APP IS RUNNING ON WEB OR MOBILE
 
-  Platform, 	// DETECTS IF APP IS RUNNING ON WEB OR MOBILE
+  Pressable, // CUSTOM TOUCHABLE BUTTON (more control than button)
 
-  Pressable, 	// CUSTOM TOUCHABLE BUTTON (more control than button)
+  ScrollView, // ALLOWS VERTICAL/HORIZONTAL SCROLLING
 
-  ScrollView, 	// ALLOWS VERTICAL/HORIZONTAL SCROLLING
+  StyleSheet, // STYLING SYSTEM FOR COMPONENTS
 
-  StyleSheet,	// STYLING SYSTEM FOR COMPONENTS
+  Text, // DISPLAY TEXT
 
-  Text, 	// DISPLAY TEXT
+  TextInput, // INPUT FIELDS (sites, hours, description)
 
-  TextInput, 	// INPUT FIELDS (sites, hours, description)
-
-  View, 	// CONTAINER LAYOUT COMPONENT
-
+  View, // CONTAINER LAYOUT COMPONENT
 } from 'react-native';
 
 // JOB TYPE - represents a single job card entry stored in the app
@@ -152,38 +153,37 @@ export default function HomeScreen() {
     saveQuickSitesToStorage();
   }, [quickSites]);
 
-  // LOAD DATA FROM STORAGE - restores saved jobs and quick sites from AsyncStorage
+  // LOAD DATA - pulls job cards from Supabase and quick sites from AsyncStorage
   const loadData = async () => {
     try {
-      const savedJobs = await AsyncStorage.getItem(JOBS_STORAGE_KEY);
-      const savedSites = await AsyncStorage.getItem(SITES_STORAGE_KEY);
-      if (savedJobs) {
-        const parsedJobs: Array<
-          Job & {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .order('created_at', { ascending: false});
 
-            photoUri?: string; 	// FALLBACK SUPPORT - for older single-photo version
+      if (error) {
+        console.log('Error loading jobs:', error);
+        Alert.alert('Load failed', error.message);
+        return
+      }
 
-            desc?: string;	// FALLBACK SUPPORT - for older description field name
-
-          }
-        > = JSON.parse(savedJobs);
-        const cleanedJobs: Job[] = parsedJobs.map((job) => ({	
-          ...job, 
-          
-          hours: Number(job.hours) || 0, 			// ENSURES HOURS IS ALWAYS STORED AS A NUMBER
-
-          description: job.description ?? job.desc ?? '', 	// SUPPORTS OLD "desc" FIELD IF IT EXISTS
-
-          photoUris: Array.isArray(job.photoUris)
-            ? job.photoUris
-            : job.photoUri
-              ? [job.photoUri]
-              : [], 						// SUPPORTS OLD SINGLE PHOTO VERSION
+      if (data) {
+        const formattedJobs: Job[] = data.map((job) => ({
+          id: job.id,
+          worker: job.worker,
+          site: job.site,
+          hours: Number(job.hours) || 0,
+          description: job.description ?? '',
+          createdAT: job.created_at, 
+          photoUris: job.photo_uris
+            ? String(job.photo_uris).split(' | ').filter(Boolean)
+            : [],
         }));
 
-        setJobs(cleanedJobs);
-
+        setJobs(formattedJobs);
       }
+
+      const savedSites = await AsyncStorage.getItem(SITES_STORAGE_KEY);
       if (savedSites) {
         const parsedSites: string[] = JSON.parse(savedSites);
         setQuickSites(parsedSites.length > 0 ? parsedSites : DEFAULT_SITES);
@@ -270,36 +270,63 @@ export default function HomeScreen() {
     setPhotoUris((current) => current.filter((uri) => uri !== uriToRemove));
   };
 
-  // ADD JOB - validates form input, creates a new job card, saves it to state, and clears the form 
-  const addJob = () => {
+  // ADD JOB - validates form input, creates a new job card, saves it to Supabase, and clears the form 
+  const addJob = async () => {
     const trimmedSite = site.trim();
     const trimmedHours = hours.trim();
     const trimmedDescription = description.trim();
+
     if (!worker || !trimmedSite || !trimmedHours || !trimmedDescription) {
       Alert.alert('Missing details', 'Please complete all fields.');
       return;
     }
+
     const parsedHours = Number(trimmedHours);
     if (Number.isNaN(parsedHours) || parsedHours <= 0) {
       Alert.alert('Invalid hours', 'Please enter a valid number of hours.');
       return;
     }
-    const newJob: Job = {
 
-      id: Date.now().toString(), 	// TEMPORARY UNIQUE ID BASED ON CURRENT TIMESTAMP
+    const newJob = {
       worker, 
       site: trimmedSite,
       hours: parsedHours, 
       description: trimmedDescription, 
-      createdAt: new Date().toISOString(), 
-      photoUris, 
+      photo_uris: photoUris.join(' | '),   // STORES PHOTO URIs AS ONE TEXT STRING FOR NOW
     };
 
-    setJobs((current) => [newJob, ...current]); 	// ADDS NEWEST JOB TO THE TOP OF THE LIST 
+    const { data, error } = await supabase
+      .from('jobs')
+      .insert([newJob])
+      .select();
+      
+    if (error) {
+      console.log('Error saving job to Supabase:', error);
+      Alert.alert('Save failed', error.message);
+      return;
+    }
 
-    addQuickSiteIfNeeded(trimmedSite); 			// SAVES SITE INTO QUICK SITES IF IT IS NEW
+    if (data && data.length > 0) {
+      const savedJob: Job = {
+        id: data[0].id,
+        worker: data[0].worker,
+        site: data[0].site, 
+        hours: Number(data[0].hours) || 0,
+        description: data[0].description ?? '',
+        createdAt: data[0].created_at,
+        photoUris: data[0].photo_uris
+          ? String(data[0].photo_uris)
+            .split(' | ')
+            .filter(Boolean)
+          : [],
+      };
 
-    clearForm(); 					// RESETS THE FORM AFTER SUCCESSFUL SAVE
+      setJobs((current) => [savedJob,...current]);
+      addQuickSiteIfNeeded(trimmedSite);
+      clearForm();
+      
+    }
+    
   };
 
   // DELETE JOB - removes a saved job card after confirmation 
